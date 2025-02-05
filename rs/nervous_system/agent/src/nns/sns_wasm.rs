@@ -2,10 +2,11 @@ use crate::sns::Sns;
 use crate::CallCanisters;
 use anyhow::anyhow;
 use ic_agent::Agent;
+use ic_nns_common::pb::v1::ProposalId;
 use ic_nns_constants::SNS_WASM_CANISTER_ID;
 use ic_sns_wasm::pb::v1::{
-    GetWasmRequest, GetWasmResponse, ListDeployedSnsesRequest, ListUpgradeStepsRequest,
-    ListUpgradeStepsResponse,
+    GetDeployedSnsByProposalIdRequest, GetDeployedSnsByProposalIdResponse, GetWasmRequest,
+    GetWasmResponse, ListDeployedSnsesRequest, ListUpgradeStepsRequest, ListUpgradeStepsResponse,
 };
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
@@ -23,6 +24,31 @@ pub async fn query_mainline_sns_upgrade_steps<C: CallCanisters>(
         sns_governance_canister_id: None,
         starting_at: None,
     };
+    agent.call(SNS_WASM_CANISTER_ID, request).await
+}
+
+pub async fn get_deployed_sns_by_proposal_id<C: CallCanisters>(
+    agent: &C,
+    proposal_id: ProposalId,
+) -> Result<GetDeployedSnsByProposalIdResponse, C::Error> {
+    let request = GetDeployedSnsByProposalIdRequest {
+        proposal_id: proposal_id.id,
+    };
+    agent.call(SNS_WASM_CANISTER_ID, request).await
+}
+
+pub async fn get_wasm<C: CallCanisters>(
+    agent: &C,
+    hash: Vec<u8>,
+) -> Result<GetWasmResponse, C::Error> {
+    let request = GetWasmRequest { hash };
+    agent.call(SNS_WASM_CANISTER_ID, request).await
+}
+
+pub async fn list_upgrade_steps<C: CallCanisters>(
+    agent: &C,
+    request: ListUpgradeStepsRequest,
+) -> Result<ListUpgradeStepsResponse, C::Error> {
     agent.call(SNS_WASM_CANISTER_ID, request).await
 }
 
