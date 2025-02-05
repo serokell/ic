@@ -10255,6 +10255,8 @@ dependencies = [
  "ic-sns-root",
  "ic-sns-swap",
  "ic-sns-wasm",
+ "icp-ledger",
+ "icrc-ledger-types",
  "itertools 0.12.1",
  "pocket-ic",
  "registry-canister",
