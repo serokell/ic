@@ -12649,6 +12649,7 @@ dependencies = [
  "candid",
  "canister-test",
  "clap 4.5.27",
+ "futures",
  "ic-base-types",
  "ic-cdk 0.16.0",
  "ic-management-canister-types",

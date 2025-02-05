@@ -48,4 +48,9 @@ pub trait CallCanisters: sealed::Sealed {
         &self,
         canister_id: impl Into<Principal> + Send,
     ) -> impl std::future::Future<Output = Result<CanisterInfo, Self::Error>> + Send;
+
+    fn check_canister_exists(
+        &self,
+        canister_id: impl Into<Principal> + Send,
+    ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send;
 }

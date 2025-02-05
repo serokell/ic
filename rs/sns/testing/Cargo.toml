@@ -21,6 +21,7 @@ path = "src/lib.rs"
 candid = { workspace = true }
 canister-test = { path = "../../rust_canisters/canister_test" }
 clap = { workspace = true }
+futures = { workspace = true }
 ic-base-types = { path = "../../types/base_types" }
 ic-cdk = { workspace = true }
 ic-management-canister-types = { path = "../../types/management_canister_types" }
