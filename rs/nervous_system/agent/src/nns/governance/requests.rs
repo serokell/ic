@@ -1,6 +1,8 @@
 use crate::Request;
+use ic_nns_common::pb::v1::ProposalId;
 use ic_nns_governance_api::pb::v1::{
-    GetNeuronsFundAuditInfoRequest, GetNeuronsFundAuditInfoResponse,
+    GetNeuronsFundAuditInfoRequest, GetNeuronsFundAuditInfoResponse, ListNeurons,
+    ListNeuronsResponse, ManageNeuronRequest, ManageNeuronResponse, NetworkEconomics, ProposalInfo,
 };
 
 impl Request for GetNeuronsFundAuditInfoRequest {
@@ -17,4 +19,77 @@ impl Request for GetNeuronsFundAuditInfoRequest {
     }
 
     type Response = GetNeuronsFundAuditInfoResponse;
+}
+
+impl Request for ListNeurons {
+    fn method(&self) -> &'static str {
+        "list_neurons"
+    }
+
+    fn update(&self) -> bool {
+        false
+    }
+
+    fn payload(&self) -> Result<Vec<u8>, candid::Error> {
+        candid::encode_one(self)
+    }
+
+    type Response = ListNeuronsResponse;
+}
+
+impl Request for ManageNeuronRequest {
+    fn method(&self) -> &'static str {
+        "manage_neuron"
+    }
+
+    fn update(&self) -> bool {
+        true
+    }
+
+    fn payload(&self) -> Result<Vec<u8>, candid::Error> {
+        candid::encode_one(self)
+    }
+
+    type Response = ManageNeuronResponse;
+}
+
+// @rvem: Canister query 'get_proposal_info' accepts bare 'ProposalId' as input.
+// However, implementing 'Request' for bare 'ProposalId' since other canisters may expose
+// endpoints that accept 'ProposalId' as input too.
+// So we're wrapping 'ProposalId' into a newtype struct and implementing 'Request' for it.
+pub struct GetProposalInfo(pub ProposalId);
+
+impl Request for GetProposalInfo {
+    fn method(&self) -> &'static str {
+        "get_proposal_info"
+    }
+
+    fn update(&self) -> bool {
+        false
+    }
+
+    fn payload(&self) -> Result<Vec<u8>, candid::Error> {
+        candid::encode_one(self.0.id)
+    }
+
+    type Response = Option<ProposalInfo>;
+}
+
+// @rvem: Dummy type to implement 'Request' for 'get_network_economics_parameters'.
+pub struct GetNetworkEconomicsParameters();
+
+impl Request for GetNetworkEconomicsParameters {
+    fn method(&self) -> &'static str {
+        "get_network_economics_parameters"
+    }
+
+    fn update(&self) -> bool {
+        false
+    }
+
+    fn payload(&self) -> Result<Vec<u8>, candid::Error> {
+        Ok(vec![])
+    }
+
+    type Response = NetworkEconomics;
 }
