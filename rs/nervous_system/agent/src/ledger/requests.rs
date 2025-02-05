@@ -4,7 +4,6 @@ use icp_ledger::{
     BinaryAccountBalanceArgs, Tokens, TransferArgs, TransferError as ICPTransferError,
 };
 use icrc_ledger_types::icrc1::transfer::{BlockIndex, TransferArg, TransferError};
-use icrc_ledger_types::icrc3::blocks::{GetBlocksRequest, GetBlocksResponse};
 
 impl Request for TransferArg {
     fn method(&self) -> &'static str {
