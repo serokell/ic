@@ -1,9 +1,4 @@
-use crate::ledger::requests::Icrc1TotalSupplyRequest;
-use crate::CallCanisters;
-
-use candid::Nat;
 use ic_base_types::PrincipalId;
-use icrc_ledger_types::icrc1::transfer::{BlockIndex, TransferArg, TransferError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
