@@ -33,6 +33,14 @@ async fn validate_subnet_setup(pocket_ic: &PocketIc) {
     assert!(app_subnet_ids.len() > 0, "No application subnets found");
 }
 
+async fn check_canister_exists(pocket_ic: &PocketIc, canister_id: &CanisterId) -> bool {
+    pocket_ic
+        .canister_info(*canister_id)
+        .await
+        .map(|_| true)
+        .unwrap_or(false)
+}
+
 pub async fn bootstrap_nns(pocket_ic: &PocketIc) {
     // Ensure that all required subnets are present before proceeding to install NNS canisters
     // At the moment this check doesn't make a lot of sense since we are always creating the new PocketIC instance
@@ -41,12 +49,11 @@ pub async fn bootstrap_nns(pocket_ic: &PocketIc) {
     validate_subnet_setup(pocket_ic).await;
 
     // Check if all NNS canisters are already installed
-    let canisters_exist = join_all(ALL_NNS_CANISTER_IDS.iter().map(|canister_id| async {
-        pocket_ic
-            .check_canister_exists(**canister_id)
-            .await
-            .unwrap_or(false)
-    }))
+    let canisters_exist = join_all(
+        ALL_NNS_CANISTER_IDS
+            .iter()
+            .map(|canister_id| async { check_canister_exists(pocket_ic, *canister_id).await }),
+    )
     .await;
 
     // Don't do anything if all NNS canister are already installed
@@ -70,7 +77,6 @@ pub async fn bootstrap_nns(pocket_ic: &PocketIc) {
     install_frontend_nns_canisters(pocket_ic).await;
 }
 
-
 #[derive(CandidType)]
 struct SnsAggregatorPayload {
     pub update_interval_ms: u64,
@@ -91,11 +97,7 @@ async fn install_frontend_nns_canisters(pocket_ic: &PocketIc) {
     let internet_identity_wasm =
         Wasm::from_location_specified_by_env_var("internet_identity", features).unwrap();
 
-    if !pocket_ic
-        .check_canister_exists(SNS_AGGREGATOR_CANISTER_ID)
-        .await
-        .unwrap_or(false)
-    {
+    if check_canister_exists(pocket_ic, &SNS_AGGREGATOR_CANISTER_ID).await {
         // Refresh every second so that the NNS dapp is as up-to-date as possible
         let sns_aggregator_payload = SnsAggregatorPayload {
             update_interval_ms: 1000,
@@ -113,11 +115,7 @@ async fn install_frontend_nns_canisters(pocket_ic: &PocketIc) {
         .await;
     }
 
-    if !pocket_ic
-        .check_canister_exists(IDENTITY_CANISTER_ID)
-        .await
-        .unwrap_or(false)
-    {
+    if check_canister_exists(pocket_ic, &IDENTITY_CANISTER_ID).await {
         let internet_identity_payload: Option<()> = None;
 
         install_canister_with_controllers(
@@ -131,11 +129,7 @@ async fn install_frontend_nns_canisters(pocket_ic: &PocketIc) {
         .await;
     }
 
-    if !pocket_ic
-        .check_canister_exists(NNS_UI_CANISTER_ID)
-        .await
-        .unwrap_or(false)
-    {
+    if check_canister_exists(pocket_ic, &NNS_UI_CANISTER_ID).await {
         // TODO @rvem: perhaps, we may start using configurable endpoint for the IC http interface
         // which should be considered in NNS dapp configuration.
         let endpoint = "localhost:8080";

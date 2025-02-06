@@ -139,17 +139,4 @@ impl CallCanisters for Agent {
     fn caller(&self) -> Result<Principal, Self::Error> {
         self.get_principal().map_err(Self::Error::Identity)
     }
-
-    async fn check_canister_exists(
-        &self,
-        canister_id: impl Into<Principal> + Send,
-    ) -> Result<bool, Self::Error> {
-        self.read_state_canister_info(canister_id.into(), "module_hash")
-            .await
-            .map(|_| true)
-            .or_else(|err| match err {
-                ic_agent::AgentError::HttpError(error_payload) => Ok(error_payload.status == 404),
-                err => Err(Self::Error::Agent(err)),
-            })
-    }
 }

@@ -131,7 +131,11 @@ impl CallCanisters for PocketIcAgent<'_> {
     ) -> Result<CanisterInfo, Self::Error> {
         let canister_id = canister_id.into();
 
-        let controllers = self.pocket_ic.get_controllers(canister_id).await;
+        let controllers = self
+            .pocket_ic
+            .try_get_controllers(canister_id)
+            .await
+            .unwrap_or(vec![]);
 
         let Some(controller) = controllers.into_iter().last() else {
             return Err(Self::Error::BlackHole);
@@ -155,14 +159,6 @@ impl CallCanisters for PocketIcAgent<'_> {
 
     fn caller(&self) -> Result<Principal, Self::Error> {
         Ok(self.sender)
-    }
-
-    async fn check_canister_exists(
-        &self,
-        canister_id: impl Into<Principal> + Send,
-    ) -> Result<bool, Self::Error> {
-        let canister_id = canister_id.into();
-        Ok(self.pocket_ic.canister_exists(canister_id).await)
     }
 }
 
@@ -189,13 +185,5 @@ impl CallCanisters for PocketIc {
 
     fn caller(&self) -> Result<Principal, Self::Error> {
         Ok(Principal::anonymous())
-    }
-
-    async fn check_canister_exists(
-        &self,
-        canister_id: impl Into<Principal> + Send,
-    ) -> Result<bool, Self::Error> {
-        let canister_id = canister_id.into();
-        Ok(self.canister_exists(canister_id).await)
     }
 }
