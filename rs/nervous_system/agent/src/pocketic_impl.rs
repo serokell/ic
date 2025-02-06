@@ -3,8 +3,8 @@ use crate::Request;
 use crate::{CallCanisters, CanisterInfo, ProgressNetwork};
 use candid::Principal;
 use pocket_ic::common::rest::RawEffectivePrincipal;
-use pocket_ic::ErrorCode;
 use pocket_ic::management_canister::DefiniteCanisterSettings;
+use pocket_ic::ErrorCode;
 use pocket_ic::{management_canister::CanisterStatusResult, nonblocking::PocketIc};
 use thiserror::Error;
 
@@ -165,8 +165,7 @@ impl CallCanisters for PocketIcAgent<'_> {
     fn is_canister_stopped_error(&self, err: &Self::Error) -> bool {
         match err {
             PocketIcCallError::PocketIc(err) => {
-                [ErrorCode::CanisterStopped, ErrorCode::CanisterStopping]
-                    .contains(&err.error_code)
+                [ErrorCode::CanisterStopped, ErrorCode::CanisterStopping].contains(&err.error_code)
             }
             _ => false,
         }
@@ -201,8 +200,7 @@ impl CallCanisters for PocketIc {
     fn is_canister_stopped_error(&self, err: &Self::Error) -> bool {
         match err {
             PocketIcCallError::PocketIc(err) => {
-                [ErrorCode::CanisterStopped, ErrorCode::CanisterStopping]
-                    .contains(&err.error_code)
+                [ErrorCode::CanisterStopped, ErrorCode::CanisterStopping].contains(&err.error_code)
             }
             _ => false,
         }
