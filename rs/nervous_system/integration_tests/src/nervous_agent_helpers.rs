@@ -1,5 +1,7 @@
+use assert_matches::assert_matches;
 use candid::Nat;
 use ic_base_types::PrincipalId;
+use ic_ledger_core::Tokens;
 use ic_nervous_system_agent::sns::Sns;
 use ic_nervous_system_agent::{CallCanisters, ProgressNetwork};
 use std::time::Duration;
@@ -215,10 +217,19 @@ pub mod sns {
     use ic_nervous_system_agent::sns::governance::{
         GovernanceCanister, ProposalSubmissionError, SubmittedProposal,
     };
+    use ic_nervous_system_agent::sns::swap::SwapCanister;
     use ic_sns_governance_api::pb::v1::{
         get_proposal_response, manage_neuron::Command, GetProposalResponse, GovernanceError,
         ManageNeuronResponse, NeuronId, Proposal, ProposalData, ProposalId,
     };
+    use ic_sns_swap::{
+        pb::v1::{
+            BuyerState, GetBuyerStateRequest, GetBuyerStateResponse, Lifecycle,
+            RefreshBuyerTokensRequest, RefreshBuyerTokensResponse,
+        },
+        swap::principal_to_subaccount,
+    };
+
     // A wrapper around ic-nervous-system-agent that specifies a neuron for
     // the NNS governance requests.
     pub struct SnsNeuronAgent<'a, C: CallCanisters> {
@@ -326,6 +337,133 @@ pub mod sns {
             proposal_id: ProposalId,
         ) -> Result<GetProposalResponse, C::Error> {
             governance_canister.get_proposal(agent, proposal_id).await
+        }
+    }
+
+    pub mod swap {
+        use super::*;
+        use icrc_ledger_types::icrc1::{account::Account, transfer::TransferArg};
+
+        pub async fn refresh_buyer_tokens<C: CallCanisters>(
+            agent: &C,
+            sns_swap_canister: SwapCanister,
+            buyer: PrincipalId,
+            confirmation_text: Option<String>,
+        ) -> Result<RefreshBuyerTokensResponse, String> {
+            sns_swap_canister
+                .refresh_buyer_tokens(
+                    agent,
+                    RefreshBuyerTokensRequest {
+                        buyer: buyer.to_string(),
+                        confirmation_text,
+                    },
+                )
+                .await
+                .map_err(|err| err.to_string())
+        }
+
+        pub async fn get_buyer_state<C: CallCanisters>(
+            agent: &C,
+            sns_swap_canister: SwapCanister,
+            buyer: PrincipalId,
+        ) -> Result<GetBuyerStateResponse, String> {
+            sns_swap_canister
+                .get_buyer_state(
+                    agent,
+                    GetBuyerStateRequest {
+                        principal_id: Some(buyer),
+                    },
+                )
+                .await
+                .map_err(|err| err.to_string())
+        }
+
+        pub async fn await_swap_lifecycle<C: CallCanisters + ProgressNetwork>(
+            agent: &C,
+            sns_swap_canister: SwapCanister,
+            expected_lifecycle: Lifecycle,
+            swap_immediately_open: bool,
+        ) -> Result<(), String> {
+            // The swap opens in up to 48 after the proposal for creating this SNS was executed
+            // if non-test version of NNS Governance canister is used.
+            if !swap_immediately_open {
+                agent.progress(Duration::from_secs(48 * 60 * 60)).await;
+            }
+            let mut last_lifecycle = None;
+            for _attempt_count in 1..=100 {
+                agent.progress(Duration::from_secs(1)).await;
+                let response = sns_swap_canister.get_lifecycle(agent).await.unwrap();
+                let lifecycle = Lifecycle::try_from(response.lifecycle.unwrap()).unwrap();
+                if lifecycle == expected_lifecycle {
+                    return Ok(());
+                }
+                last_lifecycle = Some(lifecycle);
+            }
+            Err(format!(
+                "Looks like the SNS lifecycle {:?} is never going to be reached: {:?}",
+                expected_lifecycle, last_lifecycle,
+            ))
+        }
+
+        pub async fn participate_in_swap<C: CallCanisters>(
+            agent: &C,
+            sns_swap_canister: SwapCanister,
+            amount_icp_excluding_fees: Tokens,
+        ) {
+            let direct_participant = agent.caller().unwrap().into();
+            let direct_participant_swap_subaccount =
+                Some(principal_to_subaccount(&direct_participant));
+
+            let direct_participant_swap_account = Account {
+                owner: sns_swap_canister.canister_id.0,
+                subaccount: direct_participant_swap_subaccount,
+            };
+
+            let participation_amount = amount_icp_excluding_fees.get_e8s();
+            nns::ledger::icrc1_transfer(
+                agent,
+                TransferArg {
+                    from_subaccount: None,
+                    to: direct_participant_swap_account,
+                    fee: None,
+                    created_at_time: None,
+                    memo: None,
+                    amount: Nat::from(participation_amount),
+                },
+            )
+            .await
+            .unwrap();
+
+            let response =
+                refresh_buyer_tokens(agent, sns_swap_canister, direct_participant, None).await;
+
+            assert_eq!(
+                response,
+                Ok(RefreshBuyerTokensResponse {
+                    icp_ledger_account_balance_e8s: amount_icp_excluding_fees.get_e8s(),
+                    icp_accepted_participation_e8s: amount_icp_excluding_fees.get_e8s(),
+                })
+            );
+
+            let response = get_buyer_state(agent, sns_swap_canister, direct_participant)
+                .await
+                .expect("Swap.get_buyer_state response should be Ok.");
+            let (icp, has_created_neuron_recipes) = assert_matches!(
+                response.buyer_state,
+                Some(BuyerState {
+                    icp,
+                    has_created_neuron_recipes,
+                }) => (
+                    icp.expect("buyer_state.icp must be specified."),
+                    has_created_neuron_recipes
+                        .expect("buyer_state.has_created_neuron_recipes must be specified.")
+                )
+            );
+            assert!(
+                !has_created_neuron_recipes,
+                "Neuron recipes are expected to be created only after the swap is adopted"
+            );
+            assert_eq!(icp.amount_e8s, amount_icp_excluding_fees.get_e8s());
         }
     }
 }

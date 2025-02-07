@@ -50,9 +50,9 @@ use ic_sns_governance_api::pb::v1::{
 use ic_sns_init::SnsCanisterInitPayloads;
 use ic_sns_swap::pb::v1::{
     ErrorRefundIcpRequest, ErrorRefundIcpResponse, FinalizeSwapResponse,
-    GetAutoFinalizationStatusResponse, GetBuyerStateRequest, GetBuyerStateResponse,
+    GetAutoFinalizationStatusResponse, GetBuyerStateResponse,
     GetDerivedStateResponse, GetInitResponse, GetLifecycleResponse, Lifecycle,
-    NewSaleTicketRequest, NewSaleTicketResponse, RefreshBuyerTokensRequest,
+    NewSaleTicketRequest, NewSaleTicketResponse,
     RefreshBuyerTokensResponse,
 };
 use ic_sns_test_utils::itest_helpers::populate_canister_ids;
@@ -1570,16 +1570,13 @@ pub mod sns {
         };
         use assert_matches::assert_matches;
         use ic_crypto_sha2::Sha256;
-        use ic_nervous_system_agent::sns::governance::{
-            GovernanceCanister, ProposalSubmissionError, SubmittedProposal,
-        };
+        use ic_nervous_system_agent::sns::governance::GovernanceCanister;
         use ic_sns_governance_api::pb::v1::{
             get_neuron_response,
             neuron::DissolveState,
             upgrade_journal_entry::{self, Event},
             GetUpgradeJournalRequest, Neuron,
         };
-        use pocket_ic::ErrorCode;
         use sns_pb::UpgradeSnsControlledCanister;
 
         pub const EXPECTED_UPGRADE_DURATION_MAX_SECONDS: u64 = 1000;
@@ -2502,13 +2499,10 @@ pub mod sns {
 
     pub mod swap {
         use super::*;
-        use assert_matches::assert_matches;
         use ic_nervous_system_agent::sns::swap::SwapCanister;
         use ic_nns_governance_api::pb::v1::create_service_nervous_system::SwapParameters;
-        use ic_sns_swap::{
-            pb::v1::{BuyerState, GetOpenTicketResponse, SnsNeuronRecipe},
-            swap::principal_to_subaccount,
-        };
+        use crate::nervous_agent_helpers::sns::swap as nervous_agent_swap;
+        use ic_sns_swap::pb::v1::{GetOpenTicketResponse, SnsNeuronRecipe};
         use icp_ledger::DEFAULT_TRANSFER_FEE;
 
         pub async fn get_init(pocket_ic: &PocketIc, canister_id: PrincipalId) -> GetInitResponse {
@@ -2555,16 +2549,7 @@ pub mod sns {
         ) -> Result<RefreshBuyerTokensResponse, String> {
             let agent = PocketIcAgent::new(pocket_ic, buyer);
             let canister = SwapCanister::new(swap_canister_id);
-            canister
-                .refresh_buyer_tokens(
-                    &agent,
-                    RefreshBuyerTokensRequest {
-                        buyer: buyer.to_string(),
-                        confirmation_text,
-                    },
-                )
-                .await
-                .map_err(|err| err.to_string())
+            nervous_agent_swap::refresh_buyer_tokens(&agent, canister, buyer, confirmation_text).await
         }
 
         pub async fn get_buyer_state(
@@ -2573,15 +2558,7 @@ pub mod sns {
             buyer: PrincipalId,
         ) -> Result<GetBuyerStateResponse, String> {
             let canister = SwapCanister::new(swap_canister_id);
-            canister
-                .get_buyer_state(
-                    pocket_ic,
-                    GetBuyerStateRequest {
-                        principal_id: Some(buyer),
-                    },
-                )
-                .await
-                .map_err(|err| err.to_string())
+            nervous_agent_swap::get_buyer_state(pocket_ic, canister, buyer).await
         }
 
         pub async fn get_open_ticket(
@@ -2635,29 +2612,8 @@ pub mod sns {
             swap_canister_id: PrincipalId,
             expected_lifecycle: Lifecycle,
         ) -> Result<(), String> {
-            // The swap opens in up to 48 after the proposal for creating this SNS was executed.
-            // Waiting for 48 hours in live mode is not viable, but the live mode is supposed
-            // to use NNS governance canister with test feature to ensure that swap can be started
-            // immediately.
-            if pocket_ic.url().is_none() {
-                pocket_ic
-                    .advance_time(Duration::from_secs(48 * 60 * 60))
-                    .await;
-            }
-            let mut last_lifecycle = None;
-            for _attempt_count in 1..=100 {
-                pocket_ic.progress(Duration::from_secs(1)).await;
-                let response = get_lifecycle(pocket_ic, swap_canister_id).await;
-                let lifecycle = Lifecycle::try_from(response.lifecycle.unwrap()).unwrap();
-                if lifecycle == expected_lifecycle {
-                    return Ok(());
-                }
-                last_lifecycle = Some(lifecycle);
-            }
-            Err(format!(
-                "Looks like the SNS lifecycle {:?} is never going to be reached: {:?}",
-                expected_lifecycle, last_lifecycle,
-            ))
+            let canister = SwapCanister::new(swap_canister_id);
+            nervous_agent_swap::await_swap_lifecycle(pocket_ic, canister, expected_lifecycle, false).await
         }
 
         /// Returns:
@@ -2826,60 +2782,29 @@ pub mod sns {
             direct_participant: PrincipalId,
             amount_icp_excluding_fees: Tokens,
         ) {
-            let direct_participant_swap_subaccount =
-                Some(principal_to_subaccount(&direct_participant));
+            let agent = PocketIcAgent::new(pocket_ic, direct_participant);
+            let canister = SwapCanister::new(swap_canister_id);
+            nervous_agent_swap::participate_in_swap(&agent, canister, amount_icp_excluding_fees).await
+        }
 
-            let direct_participant_swap_account = Account {
-                owner: swap_canister_id.0,
-                subaccount: direct_participant_swap_subaccount,
-            };
-
-            let participation_amount = amount_icp_excluding_fees.get_e8s();
-            nns::ledger::icrc1_transfer(
-                pocket_ic,
-                direct_participant,
-                TransferArg {
-                    from_subaccount: None,
-                    to: direct_participant_swap_account,
-                    fee: None,
-                    created_at_time: None,
-                    memo: None,
-                    amount: Nat::from(participation_amount),
-                },
-            )
-            .await
-            .unwrap();
-
-            let response =
-                refresh_buyer_tokens(pocket_ic, swap_canister_id, direct_participant, None).await;
-
-            assert_eq!(
-                response,
-                Ok(RefreshBuyerTokensResponse {
-                    icp_ledger_account_balance_e8s: amount_icp_excluding_fees.get_e8s(),
-                    icp_accepted_participation_e8s: amount_icp_excluding_fees.get_e8s(),
+        pub fn swap_direct_participations(swap_parameters: SwapParameters) -> Vec<Tokens> {
+            let SwapParameters {
+                minimum_participants,
+                maximum_direct_participation_icp,
+                ..
+            } = swap_parameters;
+            let icp_needed_to_immediately_close_e8s =
+                maximum_direct_participation_icp.unwrap().e8s.unwrap();
+            let minimum_participants_to_close = minimum_participants.unwrap();
+            let per_participant_amount_e8s =
+                icp_needed_to_immediately_close_e8s / minimum_participants_to_close;
+            let remainder = icp_needed_to_immediately_close_e8s % minimum_participants_to_close;
+            (0..minimum_participants_to_close)
+                .map(|i| {
+                    let amount = per_participant_amount_e8s + if i == 0 { remainder } else { 0 };
+                    Tokens::from_e8s(amount)
                 })
-            );
-
-            let response = get_buyer_state(pocket_ic, swap_canister_id, direct_participant)
-                .await
-                .expect("Swap.get_buyer_state response should be Ok.");
-            let (icp, has_created_neuron_recipes) = assert_matches!(
-                response.buyer_state,
-                Some(BuyerState {
-                    icp,
-                    has_created_neuron_recipes,
-                }) => (
-                    icp.expect("buyer_state.icp must be specified."),
-                    has_created_neuron_recipes
-                        .expect("buyer_state.has_created_neuron_recipes must be specified.")
-                )
-            );
-            assert!(
-                !has_created_neuron_recipes,
-                "Neuron recipes are expected to be created only after the swap is adopted"
-            );
-            assert_eq!(icp.amount_e8s, amount_icp_excluding_fees.get_e8s());
+                .collect()
         }
 
         pub async fn smoke_test_participate_and_finalize(
@@ -2887,23 +2812,8 @@ pub mod sns {
             swap_canister_id: PrincipalId,
             swap_parameters: SwapParameters,
         ) {
-            let SwapParameters {
-                minimum_participants,
-                maximum_direct_participation_icp,
-                ..
-            } = swap_parameters;
-
-            let icp_needed_to_immediately_close_e8s =
-                maximum_direct_participation_icp.unwrap().e8s.unwrap();
-            let minimum_participants_to_close = minimum_participants.unwrap();
-            let per_participant_amount_e8s =
-                icp_needed_to_immediately_close_e8s / minimum_participants_to_close;
-            let remainder = icp_needed_to_immediately_close_e8s % minimum_participants_to_close;
-
-            for i in 0..minimum_participants_to_close {
-                let amount = per_participant_amount_e8s + if i == 0 { remainder } else { 0 };
-                let amount = Tokens::from_e8s(amount);
-                let participant_id = PrincipalId::new_user_test_id(1000 + i);
+            for (i, amount) in swap_direct_participations(swap_parameters).iter().enumerate() {
+                let participant_id = PrincipalId::new_user_test_id(1000 + i as u64);
                 nns::ledger::mint_icp(
                     pocket_ic,
                     AccountIdentifier::new(participant_id, None),
@@ -2914,8 +2824,8 @@ pub mod sns {
                 participate_in_swap(
                     pocket_ic,
                     swap_canister_id,
-                    PrincipalId::new_user_test_id(1000 + i),
-                    amount,
+                    PrincipalId::new_user_test_id(1000 + i as u64),
+                    *amount,
                 )
                 .await;
             }

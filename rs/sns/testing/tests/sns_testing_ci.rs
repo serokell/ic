@@ -1,7 +1,7 @@
 use candid::{Decode, Encode, Principal};
 use ic_sns_testing::nns_dapp::bootstrap_nns;
 use ic_sns_testing::sns::{
-    create_sns, install_test_canister, upgrade_sns_controlled_test_canister, TestCanisterInitArgs,
+    create_sns_pocket_ic, install_test_canister, upgrade_sns_controlled_test_canister, TestCanisterInitArgs,
 };
 use pocket_ic::PocketIcBuilder;
 
@@ -37,7 +37,7 @@ async fn test_sns_testing_pocket_ic() {
         Decode!(&test_canister_response, String).expect("Failed to decode test canister response"),
         format!("{}, {}!", greeting, test_call_arg.clone()),
     );
-    let (sns, _nns_proposal_id) = create_sns(&pocket_ic, vec![test_canister_id]).await;
+    let (sns, _nns_proposal_id) = create_sns_pocket_ic(&pocket_ic, vec![test_canister_id]).await;
     let new_greeting = "Hi".to_string();
     upgrade_sns_controlled_test_canister(
         &pocket_ic,
