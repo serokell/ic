@@ -97,7 +97,7 @@ async fn install_frontend_nns_canisters(pocket_ic: &PocketIc) {
     let internet_identity_wasm =
         Wasm::from_location_specified_by_env_var("internet_identity", features).unwrap();
 
-    if check_canister_exists(pocket_ic, &SNS_AGGREGATOR_CANISTER_ID).await {
+    if !check_canister_exists(pocket_ic, &SNS_AGGREGATOR_CANISTER_ID).await {
         // Refresh every second so that the NNS dapp is as up-to-date as possible
         let sns_aggregator_payload = SnsAggregatorPayload {
             update_interval_ms: 1000,
@@ -115,7 +115,7 @@ async fn install_frontend_nns_canisters(pocket_ic: &PocketIc) {
         .await;
     }
 
-    if check_canister_exists(pocket_ic, &IDENTITY_CANISTER_ID).await {
+    if !check_canister_exists(pocket_ic, &IDENTITY_CANISTER_ID).await {
         let internet_identity_payload: Option<()> = None;
 
         install_canister_with_controllers(
@@ -129,7 +129,7 @@ async fn install_frontend_nns_canisters(pocket_ic: &PocketIc) {
         .await;
     }
 
-    if check_canister_exists(pocket_ic, &NNS_UI_CANISTER_ID).await {
+    if !check_canister_exists(pocket_ic, &NNS_UI_CANISTER_ID).await {
         // TODO @rvem: perhaps, we may start using configurable endpoint for the IC http interface
         // which should be considered in NNS dapp configuration.
         let endpoint = "localhost:8080";
