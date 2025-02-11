@@ -118,12 +118,7 @@ impl GovernanceCanister {
         neuron_id: NeuronId,
         follow: manage_neuron::Follow,
     ) -> Result<ManageNeuronResponse, C::Error> {
-        self
-            .manage_neuron(
-                agent,
-                neuron_id,
-                manage_neuron::Command::Follow(follow),
-            )
+        self.manage_neuron(agent, neuron_id, manage_neuron::Command::Follow(follow))
             .await
     }
 
@@ -133,12 +128,12 @@ impl GovernanceCanister {
         neuron_id: NeuronId,
         additional_dissolve_delay_seconds: u32,
     ) -> Result<ManageNeuronResponse, C::Error> {
-        let request= manage_neuron::Command::Configure(manage_neuron::Configure {
+        let request = manage_neuron::Command::Configure(manage_neuron::Configure {
             operation: Some(manage_neuron::configure::Operation::IncreaseDissolveDelay(
                 manage_neuron::IncreaseDissolveDelay {
                     additional_dissolve_delay_seconds,
-                }
-            ))
+                },
+            )),
         });
         self.manage_neuron(agent, neuron_id, request).await
     }
