@@ -12903,6 +12903,7 @@ dependencies = [
  "ic-sns-cli",
  "ic-sns-governance-api",
  "ic-sns-swap",
+ "ic-sns-wasm",
  "icp-ledger",
  "k256 0.13.4",
  "pocket-ic",
@@ -12912,6 +12913,7 @@ dependencies = [
  "serde",
  "slog",
  "tempfile",
+ "thiserror 2.0.11",
  "tokio",
  "url",
 ]
