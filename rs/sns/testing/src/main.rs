@@ -1,23 +1,22 @@
 use std::process::exit;
 
 use clap::Parser;
-use futures::future::join_all;
+use ic_nervous_system_agent::helpers::sns::get_principal_neurons;
 use ic_nervous_system_agent::CallCanisters;
 use ic_nervous_system_integration_tests::pocket_ic_helpers::load_registry_mutations;
-use ic_sns_cli::utils::{dfx_interface, get_agent};
+use ic_sns_cli::utils::get_agent;
 use ic_sns_testing::nns_dapp::bootstrap_nns;
 use ic_sns_testing::sns::{
-    create_sns, upgrade_sns_controlled_test_canister, TestCanisterInitArgs,
-    DEFAULT_SWAP_PARTICIPANTS_NUMBER,
+    complete_sns_swap, create_sns, find_sns_by_name, upgrade_sns_controlled_test_canister,
+    TestCanisterInitArgs,
 };
 use ic_sns_testing::utils::{
-    build_ephemeral_agent, get_identity_principal, get_nns_neuron_hotkeys,
-    swap_participant_secret_keys, validate_network as validate_network_impl,
-    validate_target_canister, NNS_NEURON_ID, TREASURY_PRINCIPAL_ID, TREASURY_SECRET_KEY,
+    get_identity_principal, get_nns_neuron_hotkeys, validate_network as validate_network_impl,
+    validate_target_canister, NNS_NEURON_ID, TREASURY_PRINCIPAL_ID,
 };
 use ic_sns_testing::{
     BasicScenarioArgs, NnsInitArgs, RunSubCommand, SnsTestingArgs, SnsTestingSubCommand,
-    ValidateNetworkArgs,
+    SwapCompleteArgs, ValidateNetworkArgs,
 };
 use icp_ledger::Tokens;
 use pocket_ic::PocketIcBuilder;
@@ -52,19 +51,15 @@ async fn nns_init(args: NnsInitArgs) {
         vec![dev_principal_id],
     )
     .await;
+    println!("NNS initialized");
+    println!(
+        "Use the following Neuron ID for further testing: {}",
+        NNS_NEURON_ID.id
+    );
 }
 
 async fn run_basic_scenario(args: BasicScenarioArgs) {
-    let dfx_interface = dfx_interface(&args.network, args.dev_identity)
-        .await
-        .unwrap();
-
-    let network = dfx_interface.network_descriptor();
-
-    let dev_agent = dfx_interface.agent();
-    let treasury_agent = &build_ephemeral_agent(TREASURY_SECRET_KEY.clone(), &network.clone())
-        .await
-        .unwrap();
+    let dev_agent = &get_agent(&args.network, args.dev_identity).await.unwrap();
 
     let target_canister_validation_errors =
         validate_target_canister(dev_agent, args.test_canister_id).await;
@@ -92,20 +87,11 @@ async fn run_basic_scenario(args: BasicScenarioArgs) {
         }
     }
 
-    let swap_participants_agents = join_all(
-        swap_participant_secret_keys(DEFAULT_SWAP_PARTICIPANTS_NUMBER)
-            .iter()
-            .map(|k| async { build_ephemeral_agent(k.clone(), network).await.unwrap() }),
-    )
-    .await;
-
     println!("Creating SNS...");
     let sns = create_sns(
         dev_agent,
         NNS_NEURON_ID,
         dev_agent,
-        treasury_agent,
-        swap_participants_agents,
         vec![args.test_canister_id],
     )
     .await;
@@ -136,15 +122,51 @@ async fn validate_network(args: ValidateNetworkArgs) {
     }
 }
 
+async fn swap_complete(args: SwapCompleteArgs) {
+    let agent = get_agent(&args.network, None).await.unwrap();
+
+    // Normally, SNSes would have different names, so the vector below would have a single element.
+    let target_snses = find_sns_by_name(&agent, args.sns_name.clone()).await;
+
+    if target_snses.is_empty() {
+        eprintln!("No SNS found with the name: {}", args.sns_name);
+        exit(1);
+    }
+
+    for sns in target_snses {
+        let mut neurons_to_follow = vec![];
+        if let Some(neuron) = &args.follow_neuron {
+            neurons_to_follow.push(neuron.0.clone());
+        }
+        if let Some(principal) = args.follow_principal_neurons {
+            let principal_neurons =
+                match get_principal_neurons(&agent, sns.governance, principal).await {
+                    Ok(neurons) => neurons,
+                    Err(e) => {
+                        eprintln!("Failed to get principal neurons: {}", e);
+                        vec![]
+                    }
+                };
+            neurons_to_follow.extend(principal_neurons);
+        }
+        if let Err(e) = complete_sns_swap(&agent, sns.swap, sns.governance, neurons_to_follow).await
+        {
+            eprintln!("Failed to complete swap for SNS {}: {}", args.sns_name, e);
+            exit(1);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let opts = SnsTestingArgs::parse();
+    let args = SnsTestingArgs::parse();
 
-    match opts.subcommand {
-        SnsTestingSubCommand::NnsInit(opts) => nns_init(opts).await,
+    match args.subcommand {
+        SnsTestingSubCommand::NnsInit(args) => nns_init(args).await,
         SnsTestingSubCommand::Run { subcommand } => match subcommand {
             RunSubCommand::ValidateNetwork(args) => validate_network(args).await,
             RunSubCommand::BasicScenario(args) => run_basic_scenario(args).await,
+            RunSubCommand::SwapComplete(args) => swap_complete(args).await,
         },
     }
 }

@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use clap::Parser;
-use ic_base_types::CanisterId;
+use clap::{ArgGroup, Parser};
+use ic_base_types::{CanisterId, PrincipalId};
+use ic_sns_cli::neuron_id_to_candid_subaccount::ParsedSnsNeuron;
 use url::Url;
 
 pub mod nns_dapp;
@@ -34,6 +35,8 @@ pub enum RunSubCommand {
     /// Run the SNS lifecycle scenario.
     /// The scenario will create the new SNS, and perform an upgrade for the SNS-controlled canister.
     BasicScenario(BasicScenarioArgs),
+    /// Complete the SNS swap by providing sufficient direct participations.
+    SwapComplete(SwapCompleteArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -57,6 +60,24 @@ pub struct BasicScenarioArgs {
     /// The ID of the canister to be controlled by the SNS created in the scenario.
     #[arg(long)]
     pub test_canister_id: CanisterId,
+}
+
+#[derive(Debug, Parser)]
+#[clap(group(ArgGroup::new("neuron-follow-selection").multiple(false).required(false)))]
+pub struct SwapCompleteArgs {
+    /// The network to run the basic scenario on. This can be either dfx-compatible named network
+    /// identifier or the URL of a IC HTTP endpoint.
+    #[arg(long)]
+    pub network: String,
+    #[arg(long)]
+    /// The name of the SNS to complete the swap for.
+    pub sns_name: String,
+    /// The neuron that swap participants will follow.
+    #[clap(long, group = "neuron-follow-selection")]
+    pub follow_neuron: Option<ParsedSnsNeuron>,
+    /// Principal ID whose neurons swap participants will follow.
+    #[clap(long, group = "neuron-follow-selection")]
+    pub follow_principal_neurons: Option<PrincipalId>,
 }
 
 #[derive(Debug, Parser)]
