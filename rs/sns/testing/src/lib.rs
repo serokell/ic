@@ -12,47 +12,29 @@ pub mod utils;
 #[derive(Debug, Parser)]
 #[clap(name = "sns-testing-cli", about = "A CLI for testing SNS", version)]
 pub struct SnsTestingArgs {
+    /// The network to run the basic scenario on. This can be either dfx-compatible named network
+    /// identifier or the URL of a IC HTTP endpoint.
+    #[arg(long)]
+    pub network: String,
     #[clap(subcommand)]
     pub subcommand: SnsTestingSubCommand,
 }
-
 #[derive(Debug, Parser)]
 pub enum SnsTestingSubCommand {
-    /// Run action on IC network.
-    Run {
-        #[clap(subcommand)]
-        subcommand: RunSubCommand,
-    },
-    /// Start the new PocketIC-based network with NNS canisters.
-    /// exposes the newly created network on 'http://127.0.0.1:8080'
-    NnsInit(NnsInitArgs),
-}
-
-#[derive(Debug, Parser)]
-pub enum RunSubCommand {
     /// Check that the provided IC network has initialized NNS.
     ValidateNetwork(ValidateNetworkArgs),
     /// Run the SNS lifecycle scenario.
     /// The scenario will create the new SNS, and perform an upgrade for the SNS-controlled canister.
-    BasicScenario(BasicScenarioArgs),
+    RunBasicScenario(RunBasicScenarioArgs),
     /// Complete the SNS swap by providing sufficient direct participations.
     SwapComplete(SwapCompleteArgs),
 }
 
 #[derive(Debug, Parser)]
-pub struct ValidateNetworkArgs {
-    /// The network to validate. This can be either dfx-compatible named network
-    /// identifier or the URL of a IC HTTP endpoint.
-    #[arg(long)]
-    pub network: String,
-}
+pub struct ValidateNetworkArgs {}
 
 #[derive(Debug, Parser)]
-pub struct BasicScenarioArgs {
-    /// The network to run the basic scenario on. This can be either dfx-compatible named network
-    /// identifier or the URL of a IC HTTP endpoint.
-    #[arg(long)]
-    pub network: String,
+pub struct RunBasicScenarioArgs {
     /// The name of the 'dfx' identity to use for the scenario. This identity is used to submit NNS
     /// proposal to create the new SNS and is added as an initial neuron in the new SNS.
     #[arg(long)]
@@ -68,9 +50,6 @@ pub struct SwapCompleteArgs {
     /// The network to run the basic scenario on. This can be either dfx-compatible named network
     /// identifier or the URL of a IC HTTP endpoint.
     #[arg(long)]
-    pub network: String,
-    #[arg(long)]
-    /// The name of the SNS to complete the swap for.
     pub sns_name: String,
     /// The neuron that swap participants will follow.
     #[clap(long, group = "neuron-follow-selection")]
@@ -81,6 +60,12 @@ pub struct SwapCompleteArgs {
 }
 
 #[derive(Debug, Parser)]
+#[clap(
+    name = "sns-testing-init",
+    about = "Start the new PocketIC-based network with NNS canisters.
+This command exposes the newly created network on 'http://127.0.0.1:8080'",
+    version
+)]
 pub struct NnsInitArgs {
     /// The URL of the 'pocket-ic-server' instance.
     #[arg(long)]

@@ -21,8 +21,7 @@ Since `bazel` doesn't allow to run multiple tasks in parallel, it's recommended 
 targets before starting the scenario:
 ```
 bazel build //rs/pocket_ic_server:pocket-ic-server
-bazel build //rs/sns/testing:cli
-bazel build //rs/sns/testing:sns_testing_canister
+bazel build //rs/sns/testing/...
 ```
 
 To run the scenario on the local PocketIC instance:
@@ -34,7 +33,7 @@ To run the scenario on the local PocketIC instance:
    ```
 2) Bootstrap the NNS on the launched PocketIC instance:
    ```
-   bazel run //rs/sns/testing:cli -- nns-init --server-url "http://127.0.0.1:8888" --state-dir "$PWD/sns-testing" --dev-identity sns-testing
+   bazel run //rs/sns/testing:sns-testing-init -- --server-url "http://127.0.0.1:8888" --state-dir "$PWD/sns-testing" --dev-identity sns-testing
    ```
 3) Build and deploy `test` canister:
    ```
@@ -44,9 +43,9 @@ To run the scenario on the local PocketIC instance:
    ```
 4) Launch the basic SNS testing scenario:
    ```
-   bazel run //rs/sns/testing:cli -- run basic-scenario --network http://127.0.0.1:8080 \
-     --dev-identity sns-testing \
-     --test-canister-id "$(dfx canister --network http://127.0.0.1:8080 id test)"
+   bazel run //rs/sns/testing:sns-testing -- --network http://127.0.0.1:8080 run-basic-scenario \
+      --dev-identity sns-testing \
+      --test-canister-id "$(dfx canister --network http://127.0.0.1:8080 id test)"
    ```
 
 To start the scenario from scratch, you'll need to stop the running `pocket-ic-server` instance and
@@ -63,7 +62,7 @@ remove `$PWD/sns-testing` and `$PWD/.dfx` directories before doing the steps men
 
 2) Bootstrap the NNS on the launched PocketIC instance:
    ```
-   bazel run //rs/sns/testing:cli -- nns-init --server-url "http://127.0.0.1:8888" --state-dir "$PWD/sns-testing" --dev-identity sns-testing
+   bazel run //rs/sns/testing:sns-testing-init -- --server-url "http://127.0.0.1:8888" --state-dir "$PWD/sns-testing" --dev-identity sns-testing
    ```
 
 Once these steps are completed, the PocketIC will expose the IC network HTTP endpoint on "http://127.0.0.1:8080".
@@ -88,7 +87,7 @@ Make use to use `sns-testing` identity when creating the proposal.
 <summary>Sample SNS proposal creation workflow</summary>
 <br>
 
-The example will use `//rs/sns/testing:sns_testing_canister` canister as SNS-controller canister and will base on the [init YAML file from SNS CLI](../cli/test_sns_init_v2.yaml).
+The example will use `//rs/sns/testing:sns_testing_canister` canister as SNS-controlled canister and will base on the [init YAML file from SNS CLI](../cli/test_sns_init_v2.yaml).
 
 **Make sure to use `start_time: null` in the swap parameters to ensure that the swap starts right away after the NNS proposal is executed.**
 
@@ -117,7 +116,7 @@ The example will use `//rs/sns/testing:sns_testing_canister` canister as SNS-con
 Once the NNS proposal to create the new SNS is adopted and executed, the SNS swap is supposed to open.
 Use `bazel run //rs/sns/testing:cli -- run swap-complete` to generate swap participations and complete the swap:
 ```
-bazel run //rs/sns/testing:cli -- run swap-complete --network sns-testing --sns-name "<SNS name>" --follow-principal-neurons "$(dfx identity get-principal --identity sns-testing)"
+bazel run //rs/sns/testing:sns-testing -- --network http://127.0.0.1:8080 swap-complete --sns-name "<SNS name>" --follow-principal-neurons "$(dfx identity get-principal --identity sns-testing)"
 ```
 
 This command will generate required number of participations with the sufficient amount of direct participations to complete the swap.
