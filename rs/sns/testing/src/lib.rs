@@ -47,8 +47,7 @@ pub struct RunBasicScenarioArgs {
 #[derive(Debug, Parser)]
 #[clap(group(ArgGroup::new("neuron-follow-selection").multiple(false).required(false)))]
 pub struct SwapCompleteArgs {
-    /// The network to run the basic scenario on. This can be either dfx-compatible named network
-    /// identifier or the URL of a IC HTTP endpoint.
+    /// The name of the SNS to complete the swap for.
     #[arg(long)]
     pub sns_name: String,
     /// The neuron that swap participants will follow.

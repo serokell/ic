@@ -81,7 +81,7 @@ Now you can create a new SNS via NNS proposal.
 
 The suggested way to do this is to use `dfx sns propose` command. For more information please refer to the [documentation](https://internetcomputer.org/docs/building-apps/governing-apps/launching/launch-steps-1proposal#3-submit-nns-proposal-to-create-sns).
 
-Make use to use `sns-testing` identity when creating the proposal.
+Make sure to use `sns-testing` identity when creating the proposal.
 
 <details>
 <summary>Sample SNS proposal creation workflow</summary>
@@ -119,7 +119,7 @@ Use `bazel run //rs/sns/testing:cli -- run swap-complete` to generate swap parti
 bazel run //rs/sns/testing:sns-testing -- --network http://127.0.0.1:8080 swap-complete --sns-name "<SNS name>" --follow-principal-neurons "$(dfx identity get-principal --identity sns-testing)"
 ```
 
-This command will generate required number of participations with the sufficient amount of direct participations to complete the swap.
+This command will generate required number of participations with the sufficient amount of direct participants to complete the swap.
 
 This command has optional `--follow-principal-neurons` and `--follow-neuron` arguments that accept `PrincipalId` and `NeuronId` to make swap
 participant neurons follow given neurons.
