@@ -42,6 +42,10 @@ pub struct RunBasicScenarioArgs {
     /// The ID of the canister to be controlled by the SNS created in the scenario.
     #[arg(long)]
     pub test_canister_id: CanisterId,
+    /// The NNS Neuron ID that will be used to submit the proposal to create the new SNS.
+    /// Defaults to '1'.
+    #[arg(long)]
+    pub nns_neuron_id: Option<u64>,
 }
 
 #[derive(Debug, Parser)]
@@ -76,4 +80,8 @@ pub struct NnsInitArgs {
     /// hotkey for the NNS neuron with the majority voting power.
     #[arg(long)]
     pub dev_identity: String,
+    /// The NNS Neuron ID that will have the majority voting power in the created NNS.
+    /// Defaults to '1'.
+    #[arg(long)]
+    pub deciding_nns_neuron_id: Option<u64>,
 }

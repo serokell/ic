@@ -5,6 +5,7 @@ use ic_management_canister_types::CanisterSettings;
 use ic_nervous_system_integration_tests::pocket_ic_helpers::{
     install_canister_on_subnet, load_registry_mutations, NnsInstaller, STARTING_CYCLES_PER_CANISTER,
 };
+use ic_nns_common::pb::v1::NeuronId;
 use ic_nns_constants::{LEDGER_INDEX_CANISTER_ID, ROOT_CANISTER_ID};
 use ic_sns_testing::nns_dapp::bootstrap_nns;
 use ic_sns_testing::sns::{
@@ -36,6 +37,7 @@ async fn test_sns_testing_basic_scenario() {
     let registry_proto_path = state_dir.join("registry.proto");
     let initial_mutations = load_registry_mutations(registry_proto_path);
     let dev_participant_id = PrincipalId::new_user_test_id(1000);
+    let dev_neuron_id = NeuronId { id: 1000u64 };
     let treasury_principal_id = *TREASURY_PRINCIPAL_ID;
 
     // Installing NNS canisters
@@ -46,7 +48,8 @@ async fn test_sns_testing_basic_scenario() {
             treasury_principal_id.into(),
             Tokens::from_tokens(10_000_000).unwrap(),
         )],
-        vec![dev_participant_id],
+        dev_participant_id,
+        dev_neuron_id,
     )
     .await;
     assert!(validate_network(&pocket_ic).await.is_empty());
@@ -77,7 +80,13 @@ async fn test_sns_testing_basic_scenario() {
         format!("{}, {}!", greeting, test_call_arg.clone()),
     );
     // Creating an SNS
-    let sns = create_sns(&pocket_ic, dev_participant_id, vec![test_canister_id]).await;
+    let sns = create_sns(
+        &pocket_ic,
+        dev_participant_id,
+        dev_neuron_id,
+        vec![test_canister_id],
+    )
+    .await;
     let new_greeting = "Hi".to_string();
     // Upgrading the test canister via SNS voting
     upgrade_sns_controlled_test_canister(
@@ -107,6 +116,8 @@ async fn test_sns_testing_basic_scenario() {
 
 #[tokio::test]
 pub async fn test_missing_nns_canisters() {
+    let dev_participant_id = PrincipalId::new_user_test_id(1000);
+    let dev_neuron_id = NeuronId { id: 1000u64 };
     // Preparing the PocketIC-based network
     let pocket_ic = PocketIcBuilder::new()
         .with_nns_subnet()
@@ -116,7 +127,14 @@ pub async fn test_missing_nns_canisters() {
         .build_async()
         .await;
     // Installing NNS canisters
-    bootstrap_nns(&pocket_ic, vec![], vec![], vec![]).await;
+    bootstrap_nns(
+        &pocket_ic,
+        vec![],
+        vec![],
+        dev_participant_id,
+        dev_neuron_id,
+    )
+    .await;
 
     // Deleting the ledger-index canister
     pocket_ic
